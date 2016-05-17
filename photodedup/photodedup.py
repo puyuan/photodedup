@@ -25,12 +25,13 @@ class PhotoDedup():
         logger.info("Create index if not exists")
         cur = self.conn.cursor()
         cur.execute('''create table if not exists images
-				 (timestamp text primary key,
+				 (timestamp text ,
 				  CreateDate text,
 				  GPSLatitude real,
 				  GPSLongitude   real,
 				  GPSAltitude    real ,
-				  SourceFile   text
+				  SourceFile   text,
+				  PRIMARY KEY (timestamp, SourceFile)
 				  )''')
 
 
@@ -45,7 +46,7 @@ class PhotoDedup():
                         str(d.get("GPS GPSLatitude", "")),
                         str(d.get("GPS GPSLongitude", "")),
                         str(d.get("GPS GPSAltitude", "")),
-                        unicode(d.get("SourceFile", ""), "utf-8")
+                        d.get("SourceFile", "")
                         ) for d in metadataList]
 
             count+=len(columns)
@@ -65,6 +66,23 @@ class PhotoDedup():
             columns = [(image,) for image in imagelist]
             cur.executemany("delete from images where SourceFile = ? ", columns)
             self.conn.commit()
+
+    def find_duplicate(self):
+        cur = self.conn.cursor()
+        sql='''
+            select * from images
+            where timestamp in (
+            select timestamp from images
+            where timestamp != ""
+            group by timestamp
+            having count(*)>1)
+            except
+            select *
+            from images
+            group by timestamp
+            '''
+        for row in cur.execute(sql):
+            print row[5].encode('utf-8')
 
 
 
@@ -103,14 +121,14 @@ def get_parser():
     return parser
                
 
-image_path=u"/mnt/hgfs/Pictures/"
+image_path=u"/cygdrive/f/Cleaned_Photos"
 photoDedup=PhotoDedup(image_path)
 photoDedup.create_index()
 photoIndex=PhotoIndex()
 photoIndex.regularwalk(image_path)
 photoIndex.savedict()
 new_images=photoIndex.fetch_new_images(image_path)
-deleted_images=photoIndex.fetch_deleted_images(image_path)
-photoDedup.remove_images(deleted_images)
+#deleted_images=photoIndex.fetch_deleted_images(image_path)
+#photoDedup.remove_images(deleted_images)
 photoDedup.insert_images(new_images)
-
+photoDedup.find_duplicate()

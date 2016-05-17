@@ -5,9 +5,9 @@ import pickle
 # Use the built-in version of scandir/walk if possible, otherwise
 # use the scandir module version
 try:
-        from os import walk
-except ImportError:
         from scandir import walk
+except ImportError:
+        from os import walk
 
 from os.path import join, isdir, islink
 
@@ -34,9 +34,10 @@ class PhotoIndex():
                 dir_entry=root_entry[0].setdefault(dir, [path, epoch, epoch])
                 dir_entry[2]=epoch
             for file in files:
-                path=join(root, file)
-                file_entry=root_entry[1].setdefault(file, [path, epoch, epoch])
-                file_entry[2]=epoch
+                if ".jpg" in file.lower():
+                    path=join(root, file)
+                    file_entry=root_entry[1].setdefault(file, [path, epoch, epoch])
+                    file_entry[2]=epoch
 
             countfiles+=len(files)
             countdirs+=len(dirs)
