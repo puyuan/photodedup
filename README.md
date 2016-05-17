@@ -1,6 +1,6 @@
 #photodedup 
 
-## A Photo Deduplication Tool
+### A Photo Deduplication Tool
 
 Ever wanted to clean up duplicate photos in your hard drive and folders? 
 
