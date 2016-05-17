@@ -85,6 +85,16 @@ class PhotoDedup():
             '''
         for row in cur.execute(sql):
             print row[5].encode('utf-8')
+            
+    def find_unique(self):
+        cur = self.conn.cursor()
+        sql='''
+            select * from images
+            group by timestamp
+            order by SourceFile
+            '''
+        for row in cur.execute(sql):
+            print row[5].encode('utf-8')
 
 
 
@@ -118,7 +128,8 @@ def get_parser():
 
 parser=get_parser()
 args=vars(parser.parse_args())
-if args["duplicate"]:
+
+if args["duplicate"] or args["unique"]:
     image_path=unicode(args['image_path'])
     photoDedup=PhotoDedup(image_path)
     photoDedup.create_index()
@@ -129,6 +140,13 @@ if args["duplicate"]:
     photoDedup.remove_images(deleted_images)
     new_images=photoIndex.fetch_new_images(image_path)
     photoDedup.insert_images(new_images)
-    photoDedup.find_duplicate()
+
+    if args["duplicate"]: 
+       photoDedup.find_duplicate()
+
+
+    if args["unique"]:
+       photoDedup.find_unique()
+    
 
 
