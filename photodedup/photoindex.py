@@ -73,7 +73,7 @@ class PhotoIndex():
 
 
         for name, (path, create_time, modified_time) in dirs.iteritems():
-             new_images_list+=self.fetch_new_images(path)
+             new_images_list+=self.find_images(path, image_status)
         return new_images_list
 
 
@@ -139,9 +139,3 @@ class PhotoIndex():
 
 
 
-path="/cygdrive/c/Users/paul.yuan/AppData/Local/Google/Chrome/" \
-      "User Data/Default/Cache"
-photoIndex=PhotoIndex()
-photoIndex.regularwalk(path)
-photoIndex.printdict(path)
-photoIndex.savedict()

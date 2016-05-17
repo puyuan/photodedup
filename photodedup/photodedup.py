@@ -63,9 +63,11 @@ class PhotoDedup():
         cur = self.conn.cursor()
         count=0
         for imagelist in split_every(1000, new_images):
-            columns = [(image,) for image in imagelist]
-            cur.executemany("delete from images where SourceFile = ? ", columns)
-            self.conn.commit()
+            print imagelist
+            if imagelist:
+                columns = [(image,) for image in imagelist]
+                cur.executemany("delete from images where SourceFile=?", columns)
+                self.conn.commit()
 
     def find_duplicate(self):
         cur = self.conn.cursor()
@@ -104,31 +106,29 @@ def split_every(n, iterable):
 # TODO
 def get_parser():
     parser = argparse.ArgumentParser(description='photo deduplication tool')
-    parser.add_argument('query', metavar='QUERY', type=str, nargs='*',
-                        help='the question to answer')
-    parser.add_argument('-p', '--pos', help='select answer in specified position (default: 1)', default=1, type=int)
-    parser.add_argument('-a', '--all', help='display the full text of the answer',
+
+    parser.add_argument('-d', '--duplicate', help='list duplicate images', action='store_true')
+    parser.add_argument('-u', '--unique', help='list unique images',
                         action='store_true')
-    parser.add_argument('-l', '--link', help='display only the answer link',
-                        action='store_true')
-    parser.add_argument('-c', '--color', help='enable colorized output',
-                        action='store_true')
-    parser.add_argument('-n', '--num-answers', help='number of answers to return', default=1, type=int)
-    parser.add_argument('-C', '--clear-cache', help='clear the cache',
-                        action='store_true')
-    parser.add_argument('-v', '--version', help='displays the current version of photodedup',
-                        action='store_true')
+    parser.add_argument('image_path')
+
     return parser
                
 
-image_path=u"/cygdrive/f/Cleaned_Photos"
-photoDedup=PhotoDedup(image_path)
-photoDedup.create_index()
-photoIndex=PhotoIndex()
-photoIndex.regularwalk(image_path)
-photoIndex.savedict()
-new_images=photoIndex.fetch_new_images(image_path)
-#deleted_images=photoIndex.fetch_deleted_images(image_path)
-#photoDedup.remove_images(deleted_images)
-photoDedup.insert_images(new_images)
-photoDedup.find_duplicate()
+
+parser=get_parser()
+args=vars(parser.parse_args())
+if args["duplicate"]:
+    image_path=unicode(args['image_path'])
+    photoDedup=PhotoDedup(image_path)
+    photoDedup.create_index()
+    photoIndex=PhotoIndex()
+    photoIndex.regularwalk(image_path)
+    photoIndex.savedict()
+    deleted_images=photoIndex.fetch_deleted_images(image_path)
+    photoDedup.remove_images(deleted_images)
+    new_images=photoIndex.fetch_new_images(image_path)
+    photoDedup.insert_images(new_images)
+    photoDedup.find_duplicate()
+
+
