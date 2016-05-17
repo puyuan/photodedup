@@ -120,6 +120,8 @@ def get_parser():
     parser.add_argument('-d', '--duplicate', help='list duplicate images', action='store_true')
     parser.add_argument('-u', '--unique', help='list unique images',
                         action='store_true')
+    parser.add_argument('-c', '--cache', help='find from cache instead of disk',
+                        action='store_true')
     parser.add_argument('image_path', help="path to image folder")
 
     return parser
@@ -134,8 +136,10 @@ if args["duplicate"] or args["unique"]:
     photoDedup=PhotoDedup(image_path)
     photoDedup.create_index()
     photoIndex=PhotoIndex()
-    photoIndex.regularwalk(image_path)
-    photoIndex.savedict()
+
+    if not args["cache"]:
+	    photoIndex.regularwalk(image_path)
+	    photoIndex.savedict()
     deleted_images=photoIndex.fetch_deleted_images(image_path)
     photoDedup.remove_images(deleted_images)
     new_images=photoIndex.fetch_new_images(image_path)
