@@ -120,7 +120,7 @@ def get_parser():
     parser.add_argument('-d', '--duplicate', help='list duplicate images', action='store_true')
     parser.add_argument('-u', '--unique', help='list unique images',
                         action='store_true')
-    parser.add_argument('image_path')
+    parser.add_argument('image_path', help="path to image folder")
 
     return parser
                

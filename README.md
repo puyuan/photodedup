@@ -13,6 +13,24 @@ photodedup is a photo deduplication tool written in Python.
 * Builds a local cache to speed up processing
 
 ## Usage
+
+```
+usage: photodedup.py [-h] [-d] [-u] image_path
+
+photo deduplication tool
+
+positional arguments:
+  image_path       path to image folder
+
+optional arguments:
+  -h, --help       show this help message and exit
+  -d, --duplicate  list duplicate images
+  -u, --unique     list unique images
+
+```
+
+## Examples
+
 List duplicate photos
 
 `photodedup -d /path/to/photos`
