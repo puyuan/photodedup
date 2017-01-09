@@ -1,2 +1,2 @@
-exiftool
+exifread
 sqlite
