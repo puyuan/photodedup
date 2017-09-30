@@ -1,45 +1,93 @@
 #!/usr/bin/env python
 # Paul Yuan 2016
-import os
-import sys
-import argparse
-import sqlite3
 import logging
-import exifread
 import itertools
-from  photoindex import PhotoIndex
-from logging.config import fileConfig
-from os.path import join
-import shutil
+import os
+import sqlite3
 
+import exifread
 
-fileConfig('logging_config.ini')
+from photodedup.fileindex import FileIndex
+
 logger = logging.getLogger()
 
+
 class PhotoDedup():
+    """
+    Photodedup deduplicates all image files stored within a directory. It uses sqlite to store exif info for images,
+    and uses a built-in fileindex to quickly find new/deleted files.
+    """
     def __init__(self, image_folder_path):
-        self.conn=sqlite3.connect("images.sqlite")
+        # Create photoindex folder
+        photoindexfolder = os.path.join(os.path.expanduser("~"), ".photoindex")
+        try:
+            os.mkdir(photoindexfolder)
+        except:
+            logger.debug("Can't make folder")
+
+        # Create SQLlite connection
+        self.conn=sqlite3.connect(os.path.join(photoindexfolder, "images.sqlite"))
         self.image_folder_path=image_folder_path
+        self.fileindex= FileIndex(image_folder_path)
+
+    def scan_images(self):
+        """
+        Scan images using the fileindex.
+        :return:
+        """
+        self.fileindex.scanfiles()
+        self._insert_images(self.fileindex.get_new_images())
+        self._delete_images(self.fileindex.get_deleted_images())
 
     def create_index(self):
         logger.info("Create index if not exists")
         cur = self.conn.cursor()
         cur.execute('''create table if not exists images
-				 (timestamp text ,
-				  CreateDate text,
-				  GPSLatitude real,
-				  GPSLongitude   real,
-				  GPSAltitude    real ,
-				  SourceFile   text,
-				  PRIMARY KEY (timestamp, SourceFile)
-				  )''')
+            (timestamp text ,
+            CreateDate text,
+            GPSLatitude real,
+            GPSLongitude   real,
+            GPSAltitude    real ,
+            SourceFile   text,
+            PRIMARY KEY (timestamp, SourceFile)
+            )''')
 
-
-
-    def insert_images(self, new_images):
+    def get_duplicate_images(self):
         cur = self.conn.cursor()
-        count=0
-        for metadataList in split_every(1000, self.__get_images_metadata(new_images)):
+        sql='''
+            select * from images
+            where timestamp in (
+                select timestamp from images
+                where timestamp != ""
+                group by timestamp
+                having count(*)>1)
+            except
+
+            select *
+            from images
+            group by timestamp
+            '''
+        result = [row[5] for row in cur.execute(sql)]
+        return result
+
+    def get_unique_images(self):
+        cur = self.conn.cursor()
+        sql='''
+            select * from images
+            group by timestamp
+            order by SourceFile
+            '''
+        result = [row[5] for row in cur.execute(sql)]
+        return result
+
+    def print(self, result):
+        for image in result:
+            print(image)
+
+    def _insert_images(self, new_images):
+        cur = self.conn.cursor()
+        count = 0
+        for meta_data_list in split_every(1000, self.__get_images_metadata(new_images)):
 
             columns = [(str(d.get("EXIF DateTimeOriginal", d.get("Image DateTime", ""))),
                         str(d.get("EXIF DateTimeOriginal", "")),
@@ -47,60 +95,30 @@ class PhotoDedup():
                         str(d.get("GPS GPSLongitude", "")),
                         str(d.get("GPS GPSAltitude", "")),
                         d.get("SourceFile", "")
-                        ) for d in metadataList]
+                        ) for d in meta_data_list]
 
-            count+=len(columns)
-            logger.info("Processed %d images..." % count )
+            count += len(columns)
+            logger.info("Processed %d images..." % count)
 
-            for metadata in metadataList:
+            for metadata in meta_data_list:
                 logger.debug("inserting %s", metadata.get("SourceFile", ""))
-
 
             cur.executemany("insert or ignore into images values (?, ?, ? ,?, ?, ?)", columns)
             self.conn.commit()
 
-    def remove_images(self, new_images):
+    def _delete_images(self, new_images):
         cur = self.conn.cursor()
-        count=0
+        count = 0
         for imagelist in split_every(1000, new_images):
-            print imagelist
             if imagelist:
                 columns = [(image,) for image in imagelist]
                 cur.executemany("delete from images where SourceFile=?", columns)
                 self.conn.commit()
 
-    def find_duplicate(self):
-        cur = self.conn.cursor()
-        sql='''
-            select * from images
-            where timestamp in (
-            select timestamp from images
-            where timestamp != ""
-            group by timestamp
-            having count(*)>1)
-            except
-            select *
-            from images
-            group by timestamp
-            '''
-        for row in cur.execute(sql):
-            print row[5].encode('utf-8')
-            
-    def find_unique(self):
-        cur = self.conn.cursor()
-        sql='''
-            select * from images
-            group by timestamp
-            order by SourceFile
-            '''
-        for row in cur.execute(sql):
-            print row[5].encode('utf-8')
-
-
 
     def __get_images_metadata(self, images):
         for filename in images:
-            f=open(filename)
+            f=open(filename, "rb")
             tags = exifread.process_file(f, details=False)
             tags["SourceFile"]=filename
             yield tags
@@ -113,44 +131,7 @@ def split_every(n, iterable):
         yield piece
         piece = list(itertools.islice(i, n))
 
-# TODO
-def get_parser():
-    parser = argparse.ArgumentParser(description='photo deduplication tool')
 
-    parser.add_argument('-d', '--duplicate', help='list duplicate images', action='store_true')
-    parser.add_argument('-u', '--unique', help='list unique images',
-                        action='store_true')
-    parser.add_argument('-c', '--cache', help='find from cache instead of disk',
-                        action='store_true')
-    parser.add_argument('image_path', help="path to image folder")
-
-    return parser
-               
-
-
-parser=get_parser()
-args=vars(parser.parse_args())
-
-if args["duplicate"] or args["unique"]:
-    image_path=unicode(args['image_path'])
-    photoDedup=PhotoDedup(image_path)
-    photoDedup.create_index()
-    photoIndex=PhotoIndex()
-
-    if not args["cache"]:
-	    photoIndex.regularwalk(image_path)
-	    photoIndex.savedict()
-    deleted_images=photoIndex.fetch_deleted_images(image_path)
-    photoDedup.remove_images(deleted_images)
-    new_images=photoIndex.fetch_new_images(image_path)
-    photoDedup.insert_images(new_images)
-
-    if args["duplicate"]: 
-       photoDedup.find_duplicate()
-
-
-    if args["unique"]:
-       photoDedup.find_unique()
     
 
 
