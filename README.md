@@ -1,4 +1,4 @@
-# photodedup
+# photo dedup
 
 ### A Photo Deduplication Tool
 
